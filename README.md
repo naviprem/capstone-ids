@@ -1,5 +1,6 @@
 # capstone-ids
 
+### Setting up the project
 
 1. Clone the repository and navigate to the downloaded folder.
 ```	
@@ -25,12 +26,42 @@ source activate capstone-ids-project
 KERAS_BACKEND=tensorflow python -c "from keras import backend"
 ```
 
-6. To train machine learning model on the UNSW-NB15 dataset
+### Executing various code sections
+
+1. To train machine learning model on the UNSW-NB15 dataset
 
 ```bash
 python src/ml-for-ids.py
 ```
-7. To train deep learning model on the UNSW-NB15 dataset
+
+2. To train deep learning model on the UNSW-NB15 dataset
+
 ```bash
 python src/dl-for-ids.py
+```
+
+3. To explore feature set
+
+```bash
+python -c "from src.exec import *; data_exploration()"
+```
+
+3. For data visualization
+
+```bash
+python -c "from src.exec import *; data_visualization()"
+```
+
+4. For data preprocessing
+
+```bash
+python -c "from src.exec import *; data_preprocessing()"
+
+```
+
+5. To Identify Outliers
+
+```bash
+python -c "from src.exec import *; identify_outliers()"
+
 ```

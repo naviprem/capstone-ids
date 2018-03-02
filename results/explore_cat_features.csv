@@ -1,0 +1,4 @@
+,count,unique,top,freq
+proto,175341,133,tcp,79946
+service,175341,13,-,94168
+state,175341,9,INT,82275
