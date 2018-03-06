@@ -1,9 +1,6 @@
 import pandas as pd
 import numpy as np
-import random
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from scipy.stats import randint as sp_randint
 import seaborn as sns
 from time import time
 from sklearn.preprocessing import MinMaxScaler
@@ -12,12 +9,16 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import shuffle
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.feature_selection import SelectKBest
-from sklearn.pipeline import make_pipeline
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestClassifier
+import os.path
+import csv
+from sklearn.metrics import confusion_matrix
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout
+from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger, Callback
+from keras import backend as K
+import tensorflow as tf
+import itertools
 
 
 
@@ -25,9 +26,12 @@ from sklearn.cluster import KMeans
 # https://cloudstor.aarnet.edu.au/plus/index.php/s/2DhnLGDdEECo4ys?path=%2FUNSWNB15%20-%20CSV%20Files%2Fa%20part%20of%20training%20and%20testing%20set
 unsw_nb15_tr = "dataset/UNSW_NB15_testing-set.csv"
 unsw_nb15_ts = "dataset/UNSW_NB15_training-set.csv"
-random_state = 55
+random_state = 90
 #39, 60, 55, 90
 seed = np.random.seed(random_state)
+tf.set_random_seed(random_state)
+
+
 
 class ModalData:
 
@@ -44,6 +48,8 @@ class ModalData:
         self.X_test = self.test_csv.drop(['id', 'attack_cat', 'label'], axis=1)
         self.y_train = self.train_csv['label']
         self.y_test = self.test_csv['label']
+        self.y_cat = self.train_csv['attack_cat']
+        self.y_cat = self.test_csv['attack_cat']
         self.all_keys = self.X_train.keys()
         self.num_keys = self.X_train.iloc[:, :-2].select_dtypes(exclude=['object']).keys()
         self.cat_keys = self.X_train.iloc[:, :-2].select_dtypes(include=['object']).keys()
@@ -64,7 +70,6 @@ class ModalData:
         print("Total number of attack records: ", attack)
         print("Percentage of attack records: ", (float(attack)/float(len(self.X_train))) * 100)
 
-
     def explore_cat_features(self):
         data_explore = self.X_train[self.cat_keys].describe()
         with pd.option_context('display.max_rows', None, 'display.max_columns', 50, 'display.line_width', 500,
@@ -77,15 +82,11 @@ class ModalData:
         self.X_train[self.num_keys] = self.X_train[self.num_keys].apply(lambda x: np.log(x + 1))
         self.X_test[self.num_keys] = self.X_test[self.num_keys].apply(lambda x: np.log(x + 1))
 
-
     def initial_heatmap(self):
         plt.figure(figsize=(13, 13))
         sns.heatmap(self.X_train[self.num_keys].corr())
         plt.savefig("results/initial_training_heatmap.png")
         plt.show()
-        # sns.heatmap(self.X_test[self.num_keys].corr())
-        # plt.savefig("results/initial_testing_heatmap.png")
-        # plt.show()
 
     def initial_distplot(self):
         sns.set(style="white", palette="muted", color_codes=True)
@@ -111,7 +112,6 @@ class ModalData:
         sns.heatmap(pd.DataFrame(data=self.X_train).corr())
         plt.savefig("results/processed_training_heatmap.png")
         plt.show()
-
 
     def processed_distplot(self):
         sns.set(style="white", palette="muted", color_codes=True)
@@ -181,125 +181,280 @@ class ModalData:
         variance_ratios = pd.DataFrame(np.round(ratios, 4), columns=['Explained Variance'])
         variance_ratios.index = dimensions
         variance = pd.concat([variance_ratios, components], axis=1)
-        with pd.option_context('display.max_rows', None, 'display.max_columns', 50, 'display.line_width', 500,
-                               'display.precision', 4):
-            print(variance)
-        variance.to_csv("results/explained_variance.csv")
-
-        fig1, ax1 = plt.subplots(figsize=(14, 8))
-        self.pca_data = pd.DataFrame(np.round(reduced_X_train, 4), columns=variance.index.values)
-        pca_label_data = pd.concat([self.pca_data, self.y_train], axis=1)
-        pca_attack_data = pca_label_data[pca_label_data['label'] == 1]
-        pca_normal_data = pca_label_data[pca_label_data['label'] == 0]
-        ax1.scatter(x=pca_attack_data.loc[:, 'Dimension 1'], y=pca_attack_data.loc[:, 'Dimension 2'],
-               facecolors='r', edgecolors='r', s=10, alpha=0.5)
-        ax1.scatter(x=pca_normal_data.loc[:, 'Dimension 1'], y=pca_normal_data.loc[:, 'Dimension 2'],
-                    facecolors='b', edgecolors='b', s=10, alpha=0.5)
-        plt.savefig("results/pca-with-labels.png")
-        plt.show()
-
-        clusterer = KMeans(n_clusters=2, random_state=0).fit(self.X_test)
-
-
-        preds = clusterer.predict(self.X_test)
-
-
-        centers = clusterer.cluster_centers_
-        print(centers)
-
-
-        # sample_preds = clusterer.predict(pca_samples)
-
-
-        from sklearn import metrics
-        # score = metrics.silhouette_score(self.X_test, preds)
-        # display(score)
-        # Display the results of the clustering from implementation
-        # vs.cluster_results(reduced_data, preds, centers, pca_samples)
-        predictions = pd.DataFrame(preds, columns=['Cluster'])
-        plot_data = pd.concat([predictions, pd.DataFrame(self.X_test, columns=variance.index.values)], axis=1)
-
-        # Generate the cluster plot
-        fig, ax = plt.subplots(figsize=(14, 8))
-
-        # Color map
-        cmap = cm.get_cmap('gist_rainbow')
-
-        # Color the points based on assigned cluster
-        for i, cluster in plot_data.groupby('Cluster'):
-            cluster.plot(ax=ax, kind='scatter', x='Dimension 1', y='Dimension 2', color=cmap((i) * 1.0 / (len(centers) - 1)), label='Cluster %i' % (i), s=10);
-
-        # Plot centers with indicators
-        for i, c in enumerate(centers):
-            ax.scatter(x=c[0], y=c[1], color='white', edgecolors='black', alpha=1, linewidth=2, marker='o', s=200);
-            ax.scatter(x=c[0], y=c[1], marker='$%d$' % (i), alpha=1, s=100);
-
-        # Plot transformed sample points
-        # ax.scatter(x=pca_samples[:, 0], y=pca_samples[:, 1], s=150, linewidth=4, color='black', marker='x');
-
-        # Set plot title
-        ax.set_title(
-            "Cluster Learning on PCA-Reduced Data - Centroids Marked by Number\nTransformed Sample Data Marked by Black Cross");
-        plt.savefig("results/cluster.png")
-        plt.show()
+        # with pd.option_context('display.max_rows', None, 'display.max_columns', 50, 'display.line_width', 500,
+        #                        'display.precision', 4):
+        #     print(variance)
+        variance.to_csv("results/explained_variance_" + str(c) + ".csv")
 
     def get_col_count(self):
         return len(self.X_train.columns)
 
-    def train(self):
+    def train_random_forest(self):
+        metrics = {}
+        clf = RandomForestClassifier(random_state=random_state)
+        start = time()
+        model = clf.fit(self.X_train, self.y_train)
+        end = time()
+        metrics["train_time"] = end - start
+        metrics["model_name"] = model.__class__.__name__
+        metrics["refined"] = False
+        start = time()
+        y_pred = clf.predict(self.X_test)
+        end = time()
+        metrics["predict_time"] = end - start
+
+        metrics["accuracy"] = float(accuracy_score(self.y_test, pd.DataFrame(data=y_pred)))
+        tn, fp, fn, tp = confusion_matrix(self.y_test, y_pred).ravel()
+
+        metrics["false_positive_rate"] = fpr = fp / (fp + tn)
+        metrics["false_negative_rate"] = fnr = fn / (fn + tp)
+        metrics["false_alarm_Rate"] = (fpr + fnr) / 2
+        self.write_to_metrics_csv(metrics)
+
+    def tp(self, true, pred):
+        y_true = true[:,1:]
+        y_pred = pred[:,1:]
+        tp_3d = K.concatenate(
+            [
+                K.cast(y_true, 'bool'),
+                K.cast(K.round(y_pred), 'bool'),
+                K.cast(K.ones_like(y_pred), 'bool')
+            ], axis=1
+        )
+        return K.sum(K.cast(K.all(tp_3d, axis=1), 'int32'))
+
+    def tn(self, true, pred):
+        y_true = true[:, 1:]
+        y_pred = pred[:, 1:]
+        count = K.sum(K.cast(K.ones_like(y_pred), 'int32'))
+        tn_3d = K.concatenate(
+            [
+                K.cast(y_true, 'bool'),
+                K.cast(K.round(y_pred), 'bool'),
+                K.cast(K.zeros_like(y_pred), 'bool')
+            ], axis=1
+        )
+        return count - K.sum(K.cast(K.any(tn_3d, axis=1), 'int32'))
+
+    def fp(self, true, pred):
+        y_true = true[:, 1:]
+        y_pred = pred[:, 1:]
+        fp_3d = K.concatenate(
+            [
+                K.cast(K.abs(y_true - K.ones_like(y_true)), 'bool'),
+                K.cast(K.round(y_pred), 'bool'),
+                K.cast(K.ones_like(y_pred), 'bool')
+            ], axis=1
+        )
+        return K.sum(K.cast(K.all(fp_3d, axis=1), 'int32'))
+
+    def fn(self, true, pred):
+        y_true = true[:, 1:]
+        y_pred = pred[:, 1:]
+        fn_3d = K.concatenate(
+            [
+                K.cast(y_true, 'bool'),
+                K.cast(K.abs(K.round(y_pred) - K.ones_like(y_pred)), 'bool'),
+                K.cast(K.ones_like(y_pred), 'bool')
+            ], axis=1
+        )
+        return K.sum(K.cast(K.all(fn_3d, axis=1), 'int32'))
+
+    def train_mlp_refined(self):
+        metrics = {}
+
+        model = Sequential()
+        model.add(Dense(512, activation='relu', input_shape=(16,)))
+        model.add(Dropout(.6))
+        model.add(Dense(384, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(256, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(64, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(32, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(16, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(8, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(2, activation='softmax'))
+
+        model.compile(loss='binary_crossentropy', optimizer='adagrad',
+                      metrics=['accuracy', self.tp, self.tn, self.fp, self.fn])
+        model.summary()
+        checkpointer = ModelCheckpoint(filepath='results/model.weights.best.hdf5', verbose=1,
+                                       save_best_only=True, monitor='loss', mode='min')
+        earlystopping = EarlyStopping(monitor='loss', patience=75, verbose=1, mode='min')
+        self.X_train, self.y_train = shuffle(self.X_train, self.y_train, random_state=self.rs)
+        y_train = pd.get_dummies(self.y_train)
+        y_test = pd.get_dummies(self.y_test)
+        start = time()
+        model.fit(self.X_train, y_train, epochs=750, batch_size=1000,
+                       validation_split=0.35, verbose=2, callbacks=[checkpointer, earlystopping], shuffle=True)
+        end = time()
+        metrics["train_time"] = end - start
+        metrics["model_name"] = "Multilayer Perceptron"
+        metrics["refined"] = True
+
+        start = time()
+        model.load_weights('results/model.weights.best.hdf5')
+        loss, acc, tp, tn, fp, fn = model.evaluate(self.X_test, y_test)
+        end = time()
+
+        metrics["predict_time"] = end - start
+        metrics["accuracy"] = acc
+        metrics["false_positive_rate"] = fpr = fp / (fp + tn)
+        metrics["false_negative_rate"] = fnr = fn / (fn + tp)
+        metrics["false_alarm_Rate"] = (fpr + fnr) / 2
+        self.write_to_metrics_csv(metrics)
+
+    def train_mlp(self):
+        metrics = {}
+
+        model = Sequential()
+        model.add(Dense(256, activation='relu', input_shape=(16,)))
+        model.add(Dropout(.4))
+        model.add(Dense(2, activation='softmax'))
+        model.compile(loss='binary_crossentropy', optimizer='adagrad',
+                      metrics=['accuracy', self.tp, self.tn, self.fp, self.fn])
+        model.summary()
+        y_train = pd.get_dummies(self.y_train)
+        y_test = pd.get_dummies(self.y_test)
+        start = time()
+        model.fit(self.X_train, y_train, epochs=5, batch_size=5000,
+                  validation_split=0.1, verbose=2, shuffle=True)
+        end = time()
+        metrics["train_time"] = end - start
+        metrics["model_name"] = "Multilayer Perceptron"
+        metrics["refined"] = False
+
+        start = time()
+        loss, acc, tp, tn, fp, fn = model.evaluate(self.X_test, y_test)
+        end = time()
+
+        metrics["predict_time"] = end - start
+        metrics["accuracy"] = acc
+        metrics["false_positive_rate"] = fpr = fp / (fp + tn)
+        metrics["false_negative_rate"] = fnr = fn / (fn + tp)
+        metrics["false_alarm_Rate"] = (fpr + fnr) / 2
+        self.write_to_metrics_csv(metrics)
+
+    def write_to_metrics_csv(self, results):
+        metrics_csv = "results/metrics.csv"
+        log_keys = ["model_name", "refined", "train_time", "predict_time", "accuracy",
+                    'false_positive_rate', "false_negative_rate", "false_alarm_Rate"]
+
+        if os.path.exists(metrics_csv):
+            with open(metrics_csv, 'a') as log_file:
+                writer = csv.DictWriter(log_file, log_keys, extrasaction="ignore")
+                writer.writerow(results)
+        else:
+            with open(metrics_csv, 'a') as log_file:
+                wr = csv.writer(log_file)
+                wr.writerow(log_keys)
+            with open(metrics_csv, 'a') as log_file:
+                writer = csv.DictWriter(log_file, log_keys, extrasaction="ignore")
+                writer.writerow(results)
+
+    def train_random_forest_refined(self):
+        metrics = {}
         self.X_train, self.y_train = shuffle(self.X_train, self.y_train, random_state=self.rs )
-        clf = AdaBoostClassifier(random_state=self.rs)
+        model = RandomForestClassifier(random_state=random_state)
         scorer = make_scorer(accuracy_score)
-        param_dist = {"max_depth": [3, None],
-                      "max_features": sp_randint(1, 11),
-                      "min_samples_split": sp_randint(2, 11),
-                      "min_samples_leaf": sp_randint(1, 11),
-                      "bootstrap": [True, False],
+        param_dist = {"max_features": ["sqrt", "log2"],
+                      "min_samples_split": [2, 8, 14, 16],
                       "criterion": ["gini", "entropy"]}
-        parameters = {'max_features': ['log2'], 'criterion': ["entropy"]}
-        param_dist = {"n_estimators": sp_randint(1, 100),
-                      "random_state": sp_randint(0, 100)}
 
-        start = time()  # Get start time
-        # search_obj = GridSearchCV(clf, param_grid=parameters, scoring=scorer, return_train_score=True)
-        search_obj = RandomizedSearchCV(clf, param_distributions=param_dist, scoring=scorer, n_iter=20,
-                                        random_state=self.rs, return_train_score=True)
+        start = time()
+        search_obj = GridSearchCV(model, cv=5, param_grid=param_dist, scoring=scorer, return_train_score=True)
         fit = search_obj.fit(self.X_train, self.y_train)
-        end = time()  # Get end time
+        end = time()
 
-        self.train_time = end - start
+        metrics["train_time"] = end - start
+        metrics["model_name"] = model.__class__.__name__
+        metrics["refined"] = False
+
         self.cv_results = search_obj.cv_results_
-        self.best_clf = fit.best_estimator_
-        self.important_features = self.best_clf.feature_importances_
+        self.best_model = fit.best_estimator_
+        self.important_features = self.best_model.feature_importances_
         self.best_params = search_obj.best_params_
 
-        start = time()  # Get start time
-        best_predictions = self.best_clf.predict(self.X_test)
-        self.accuracy = float(accuracy_score(self.y_test, pd.DataFrame(data=best_predictions)))
-        end = time()  # Get end time
+        start = time()
+        best_predictions = self.best_model.predict(self.X_test)
+        end = time()
 
-        self.predict_time = end - start
+        metrics["predict_time"] = end - start
+
+        metrics["accuracy"] = float(accuracy_score(self.y_test, pd.DataFrame(data=best_predictions)))
+        tn, fp, fn, tp = confusion_matrix(self.y_test, best_predictions).ravel()
+
+        metrics["false_positive_rate"] = fpr = fp / (fp + tn)
+        metrics["false_negative_rate"] = fnr = fn / (fn + tp)
+        metrics["false_alarm_Rate"] = (fpr + fnr) / 2
+        self.write_to_metrics_csv(metrics)
+
+    def confusion_matrix(self):
+        model = Sequential()
+        model.add(Dense(512, activation='relu', input_shape=(16,)))
+        model.add(Dropout(.6))
+        model.add(Dense(384, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(256, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(64, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(32, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(16, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(8, activation='relu'))
+        model.add(Dropout(.6))
+        model.add(Dense(2, activation='softmax'))
+        model.compile(loss='binary_crossentropy', optimizer='adagrad',
+                      metrics=['accuracy'])
+        model.load_weights('results/model.weights.best.hdf5')
+        pred = model.predict(self.X_test)
+
+        y_pred = pred[:, 1:]
+        y_pred = np.round(y_pred).astype(int),
+        union = np.concatenate((np.reshape(np.array(self.y_cat), (82332,1)), np.reshape(np.array(y_pred), (82332,1))), axis=1)
+        self.p_cat = np.array([self.get_attack_cat(x) for x in union])
+        classes = np.sort(np.unique(self.y_cat))
+        cm = confusion_matrix(np.array(self.y_cat), self.p_cat, labels=classes)
 
 
+        plt.figure(figsize=(8, 7))
+        title = 'Confusion matrix'
+        cmap = plt.cm.Blues
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.title(title)
+        plt.colorbar()
+        tick_marks = np.arange(len(classes))
+        plt.xticks(tick_marks, classes, rotation=45)
+        plt.yticks(tick_marks, classes)
 
+        fmt = 'd'
+        thresh = cm.max() / 2.
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            plt.text(j, i, format(cm[i, j], fmt),
+                     horizontalalignment="center",
+                     color="white" if cm[i, j] > thresh else "black")
 
+        plt.tight_layout()
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
+        plt.savefig("results/confusion_matrix.png")
+        plt.show()
 
-# data = ModalData()
-# data.explore_num_features()
-# # data.explore_cat_features()
-# # data.display_heatmap()
-# # data.log_transform()
-# # # data.display_heatmap()
-# # # data.identify_outliers()
-# # data.min_max_scaler()
-# # data.factorize()
-# # data.pca()
-# # data.train()
-# print("Accuracy: " + str(data.accuracy))
-# # print("Cross Validation Results: ")
-# # with pd.option_context('display.max_rows', None, 'display.max_columns', 30):
-# #     print(pd.DataFrame.from_dict(data.cv_results))
-# # print("Important Features: ", *data.important_features)
-# print("Training time: " + str(data.train_time))
-# print("Predict time: " + str(data.predict_time))
-# print("Best Params: ", data.best_params)
+    def get_attack_cat(self, x):
+        if x[1] == 0:
+            return "Normal"
+        elif x[0] == "Normal":
+            return "Generic"
+        else:
+            return x[0]

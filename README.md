@@ -46,7 +46,7 @@ python src/dl-for-ids.py
 python -c "from src.exec import *; data_exploration()"
 ```
 
-3. For data visualization
+3. For exploratory data visualizations
 
 ```bash
 python -c "from src.exec import *; data_visualization()"
@@ -63,5 +63,49 @@ python -c "from src.exec import *; data_preprocessing()"
 
 ```bash
 python -c "from src.exec import *; identify_outliers()"
+
+```
+
+6. To train a Random Forest based model 
+
+```bash
+python -c "from src.exec import *; train_random_forest_model()"
+
+```
+
+7. To train a Random Forest based model using cross validation 
+
+```bash
+python -c "from src.exec import *; train_random_forest_model_refined()"
+
+```
+
+8. To train a Multilayer Perceptron model 
+
+```bash
+python -c "from src.exec import *; train_mlp_model()"
+
+```
+
+9. To train and refine a Multilayer Perceptron model 
+
+```bash
+python -c "from src.exec import *; train_mlp_model_refined()"
+
+```
+10. To generate a confusion matrix from the predictions of best model 
+
+```bash
+python -c "from src.exec import *; confusion_matrix()"
+
+```
+
+11. To evaluate on the entire 2.5 million records of UNSW-NB15 dataset with the refined optimal MLP model
+
+Download the UNSW-NB15_4.csv file from [UNSW-NB15 datasets](https://cloudstor.aarnet.edu.au/plus/index.php/s/2DhnLGDdEECo4ys?path=%2FUNSW-NB15%20-%20CSV%20Files) and
+place it in the repo, at location `path/to/ids-capstone/dataset`. 
+
+```bash
+python -c "from src.exec import *; predict_from_raw_dataset()"
 
 ```

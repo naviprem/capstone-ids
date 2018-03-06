@@ -1,5 +1,5 @@
 import src.ml_for_ids as ml
-import src.dl_for_ids as dl
+import src.evaluate as e
 
 def data_exploration():
     data = ml.ModalData()
@@ -17,11 +17,53 @@ def data_preprocessing():
     data.log_transform()
     data.min_max_scaler()
     data.factorize()
-    data.pca(2)
-    # data.processed_heatmap()
-    # data.processed_distplot()
+    data.pca(41)
 
 def identify_outliers():
     data = ml.ModalData()
     data.log_transform()
     data.identify_outliers()
+
+def train_random_forest_model():
+    data = ml.ModalData()
+    data.log_transform()
+    data.min_max_scaler()
+    data.factorize()
+    data.pca(16)
+    data.train_random_forest()
+
+def train_random_forest_model_refined():
+    data = ml.ModalData()
+    data.log_transform()
+    data.min_max_scaler()
+    data.factorize()
+    data.pca(16)
+    data.train_random_forest_refined()
+
+def train_mlp_model():
+    data = ml.ModalData()
+    data.log_transform()
+    data.min_max_scaler()
+    data.factorize()
+    data.pca(16)
+    data.train_mlp()
+
+def train_mlp_model_refined():
+    data = ml.ModalData()
+    data.log_transform()
+    data.min_max_scaler()
+    data.factorize()
+    data.pca(16)
+    data.train_mlp_refined()
+
+def confusion_matrix():
+    data = ml.ModalData()
+    data.log_transform()
+    data.min_max_scaler()
+    data.factorize()
+    data.pca(16)
+    data.confusion_matrix()
+
+def predict_From_raw_dataset():
+    e.evaluate()
+
