@@ -64,6 +64,6 @@ def confusion_matrix():
     data.pca(16)
     data.confusion_matrix()
 
-def predict_From_raw_dataset():
+def predict_from_raw_dataset():
     e.evaluate()
 
